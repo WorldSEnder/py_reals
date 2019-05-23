@@ -1,0 +1,20 @@
+from . import *
+
+zero = RealNumber(zero_stream)
+three_forth = RealNumber(from_fraction(fractions.Fraction(3, 4)))
+one = RealNumber(one_stream)
+xplus3Over4 = UnaryOperation(LFTOne(1, 0, 3, 4))
+one_over_xplus2 = UnaryOperation(LFTOne(0, 1, 1, 2))
+piMinusThree = RealNumber(adapted_bpp_arbitrary_base)
+piForth = xplus3Over4(piMinusThree)
+third_of = UnaryOperation(LFTOne(1, 0, 0, 3))
+midpoint = BinaryOperation(LFTTwo(0, 0, 1, 0, 1, 0, 0, 2))
+seven_eightth = midpoint(three_forth, one)
+
+print(zero)
+print(one)
+print(third_of(one))
+print(one_over_xplus2(third_of(one)))
+print(piMinusThree)
+print(piForth)
+print(seven_eightth)

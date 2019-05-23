@@ -482,9 +482,9 @@ class LFTTwo():
     @property
     def next_index_to_pull(self):
         [a, b, c, d, e, f, g, h] = self._matrix
-        # TODO: duplicated work here, when we also calculate this for lft_type
-        assert self.is_contracting
+        # assert self.is_contracting
         mode = self.lft_type
+        # TODO: duplicated work here, when we also calculate this for lft_type
         small_enough = {
             LFTTwo.MODE_MM_PP: lambda: LFTOne.is_small_enough((c + e) * (h + b) - (g + a) * (d + f), (h + b) ** 2 - (d + f) ** 2),
             LFTTwo.MODE_MP_PP: lambda: LFTOne.is_small_enough((c + a) * (h + f) - (g + e) * (d + b), (h + f) ** 2 - (d + b) ** 2),
@@ -503,15 +503,13 @@ class LFTTwo():
         # TODO: find a solid way to determine which stream to pull next, instead of basically by chance
         pre_hash = hash((a, b, c, d, e, f, g, h)) % 2**32
         pre_hash = (pre_hash+0x479ab41d) + (pre_hash<<8)
-        pre_hash = (pre_hash^0xe4aa10ce) ^ (pre_hash>>5)
-        pre_hash = (pre_hash+0x9942f0a6) - (pre_hash<<14)
         pre_hash = (pre_hash^0x5aedd67d) ^ (pre_hash>>3)
         pre_hash = (pre_hash+0x17bea992) + (pre_hash<<7)
         return pre_hash % 2
 
     def extract(self):
         [a, b, c, d, e, f, g, h] = self._matrix
-        assert self.is_contracting
+        # assert self.is_contracting
         mode = self.lft_type
         # take the minimum point TODO: biased against smaller negative digits
         extracted_digit = {
@@ -582,6 +580,7 @@ def bbp_formula_base_2_32():
         x = ((4*S(1, n) - 2*S(4, n) - S(5, n) - S(6, n)) >> EXT_SHIFT) & EXT_MASK
         yield x
         n += 8
+
 def adapted_bpp_arbitrary_base():
     bbp_generator = bbp_formula_base_2_32()
 
@@ -688,23 +687,3 @@ class BinaryOperation():
     def __call__(self, x, y):
         new_gen = transform_binary(self._matrix, x._generator, y._generator)
         return RealNumber(new_gen)
-
-if __name__ == "__main__":
-    zero = RealNumber(zero_stream)
-    three_forth = RealNumber(from_fraction(fractions.Fraction(3, 4)))
-    one = RealNumber(one_stream)
-    xplus3Over4 = UnaryOperation(LFTOne(1, 0, 3, 4))
-    one_over_xplus2 = UnaryOperation(LFTOne(0, 1, 1, 2))
-    piMinusThree = RealNumber(adapted_bpp_arbitrary_base)
-    piForth = xplus3Over4(piMinusThree)
-    third_of = UnaryOperation(LFTOne(1, 0, 0, 3))
-    midpoint = BinaryOperation(LFTTwo(0, 0, 1, 0, 1, 0, 0, 2))
-    seven_eightth = midpoint(three_forth, one)
-
-    print(zero)
-    print(one)
-    print(third_of(one))
-    print(one_over_xplus2(third_of(one)))
-    print(piMinusThree)
-    print(piForth)
-    print(seven_eightth)
