@@ -544,6 +544,80 @@ def one_stream():
     while True:
         yield POWER_2 - 1
 
+def bbp_formula_base_2_32():
+    """this calculates pi - 3 in base 16 via the BBP formula.
+    We calculate pi - 3 instead of pi, so that the result is
+    in the range of [-1, 1]"""
+    SHIFT = 4 * 14
+    M = 1 << SHIFT
+    MASK = M - 1
+
+    def S(j, n):
+        # Left sum
+        s = 0
+        k = 0
+        while k <= n:
+            r = 8 * k + j
+            s = (s + (pow(16, n - k, r) << SHIFT) // r) & MASK
+            k += 1
+        # fractional part
+        t = 0
+        k = -1
+        while 1:
+            # int(16**(n-k) * M)
+            xp = int(16 ** k * M)
+            newt = t + xp // (8 * (n - k) + j)
+            # Iterate until t no longer changes
+            if t == newt:
+                break
+            else:
+                t = newt
+            k -= 1
+        return s + t
+    n = 0
+    # not all of the last 6 digits are reliable, but the leading 8 are
+    EXT_SHIFT = 4 * 6
+    EXT_MASK = (1 << 4 * 8) - 1
+    while True:
+        x = ((4*S(1, n) - 2*S(4, n) - S(5, n) - S(6, n)) >> EXT_SHIFT) & EXT_MASK
+        yield x
+        n += 8
+def adapted_bpp_arbitrary_base():
+    bbp_generator = bbp_formula_base_2_32()
+
+    if EXPONENT_2 % 32 == 0:
+        digits_per_power2 = EXPONENT_2 // 32
+        while True:
+            n = digits_per_power2
+            out = 0
+            while n:
+                out = (out << 32) + next(bbp_generator)
+                n -= 1
+            yield out
+    elif 32 % EXPONENT_2 == 0:
+        digits_per_gen = 32 // EXPONENT_2
+        MASK = POWER_2 - 1
+        n = 0
+        digit = 0
+        while True:
+            if n == 0:
+                n = digits_per_gen
+                digit = next(bbp_generator)
+            n -= 1
+            yield (digit >> n * EXPONENT_2) & MASK
+    else:
+        print("Chosen exponent is not compatible with 32. This is not advised.")
+        bits_remaining = 0
+        digit = 0
+        MASK = POWER_2 - 1
+        while True:
+            while bits_remaining < EXPONENT_2:
+                digit = (digit << 32) + next(bbp_generator)
+                bits_remaining += 32
+            yield (digit >> (bits_remaining - EXPONENT_2)) & MASK
+            digit = digit & ~(MASK << (bits_remaining - EXPONENT_2))
+            bits_remaining -= EXPONENT_2
+
 def transform_unary(lft, digitstream):
     assert lft.is_contracting
     def transformed():
@@ -617,17 +691,20 @@ class BinaryOperation():
 
 if __name__ == "__main__":
     zero = RealNumber(zero_stream)
-    three_forth = RealNumber(from_fraction(fractions.Fraction(1, 2**32)))
+    three_forth = RealNumber(from_fraction(fractions.Fraction(3, 4)))
     one = RealNumber(one_stream)
-    piForth = RealNumber(from_fraction(fractions.Fraction(233546921420225777694970883318153571, 4 * 74340293968115785654927455866388593)))
-    third_of = UnaryOperation(LFTOne(1, 0, 0, 3))
+    xplus3Over4 = UnaryOperation(LFTOne(1, 0, 3, 4))
     one_over_xplus2 = UnaryOperation(LFTOne(0, 1, 1, 2))
+    piMinusThree = RealNumber(adapted_bpp_arbitrary_base)
+    piForth = xplus3Over4(piMinusThree)
+    third_of = UnaryOperation(LFTOne(1, 0, 0, 3))
     midpoint = BinaryOperation(LFTTwo(0, 0, 1, 0, 1, 0, 0, 2))
-    half = midpoint(piForth, one)
+    seven_eightth = midpoint(three_forth, one)
 
     print(zero)
     print(one)
     print(third_of(one))
     print(one_over_xplus2(third_of(one)))
+    print(piMinusThree)
     print(piForth)
-    print(half)
+    print(seven_eightth)
