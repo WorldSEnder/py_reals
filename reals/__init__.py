@@ -5,6 +5,7 @@ from .defs import EXPONENT_2, POWER_2
 from .lft_one import LFTOne
 from .lft_two import LFTTwo
 
+
 def zero_stream():
     while True:
         yield 0
@@ -150,6 +151,32 @@ def format_num(digitstream, integer_digits, precision=128):
         matrix.normalize()
     lower, upper = matrix.bounds
     return "[{l}, {u}]".format(l=dec_from_frac(lower), u=dec_from_frac(upper))
+
+
+def dec_from_frac(frac):
+    return frac.numerator / decimal.Decimal(frac.denominator)
+
+
+def from_matrix_prod(lft_start, matrix_gen):
+    def generator():
+        lft = lft_start.clone()
+        matrices = matrix_gen()
+        while True:
+            while not lft.is_contracting or lft.next_index_to_pull is not None:
+                lft.times(next(matrices))
+            while lft.is_contracting and lft.next_index_to_pull is None:
+                yield lft.extract()
+            lft.normalize()
+    return generator
+
+
+def log2_matrix_gen():
+    n = 1
+    while True:
+        yield LFTOne(- n, 2 * n + 1, -4 * n, 7 * n + 3)
+        n += 1
+
+log2_gen = from_matrix_prod(LFTOne(1, 2, 4, 6), log2_matrix_gen)
 
 
 class PrimRealNumber():

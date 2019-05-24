@@ -12,6 +12,8 @@ midpoint = PrimBinaryOperation(LFTTwo(0, 0, 1, 0, 1, 0, 0, 2))
 times = PrimBinaryOperation(LFTTwo(1, 0, 3, 0, 3, 0, 0, 10))
 seven_eightth = midpoint(three_forth, one)
 
+log2 = PrimRealNumber(log2_gen)
+
 print(zero)
 print(one)
 print(third_of(one))
@@ -20,3 +22,4 @@ print(piMinusThree)
 print(piForth)
 print(seven_eightth)
 print(times(piMinusThree, piMinusThree))
+print(log2)

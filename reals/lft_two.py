@@ -3,6 +3,7 @@ import math
 from .defs import POWER_2, EXPONENT_2
 from .lft_one import LFTOne
 
+
 class LFTTwo():
     # the mode determines which endpoint is the min and max of the output interval
     MODE_MM_PP = 0x03
@@ -20,6 +21,7 @@ class LFTTwo():
 
     def __init__(self, a, b, c, d, e, f, g, h):
         self._matrix = [a, b, c, d, e, f, g, h]
+        self._calculateCharacteristics()
 
     def clone(self):
         [a, b, c, d, e, f, g, h] = self._matrix
@@ -29,6 +31,38 @@ class LFTTwo():
         [a, b, c, d, e, f, g, h] = self._matrix
         return "[{a}\t{c}\t| {e}\t{g}\n{b}\t{d}\t| {f}\t{h}]".format(
             a=a, b=b, c=c, d=d, e=e, f=f, g=g, h=h)
+
+    def _calculateCharacteristics(self):
+        [a, b, c, d, e, f, g, h] = self._matrix
+        self._lft_type = mode = self._calc_lft_type()
+        self._interval_length_num, self._interval_length_denom = {
+            LFTTwo.MODE_MM_PP: lambda: ((c + e) * (h + b) - (g + a) * (d + f), (h + b) ** 2 - (d + f) ** 2),
+            LFTTwo.MODE_MP_PP: lambda: ((c + a) * (h + f) - (g + e) * (d + b), (h + f) ** 2 - (d + b) ** 2),
+            LFTTwo.MODE_PM_PP: lambda: ((e + a) * (h + d) - (g + c) * (f + b), (h + d) ** 2 - (f + b) ** 2),
+            LFTTwo.MODE_MM_PM: lambda: ((c - a) * (h - f) - (g - e) * (d - b), (h - f) ** 2 - (d - b) ** 2),
+            LFTTwo.MODE_MP_PM: lambda: ((c - e) * (h - b) - (g - a) * (d - f), (h - b) ** 2 - (d - f) ** 2),
+            LFTTwo.MODE_PP_PM: lambda: ((g + c) * (f + b) - (e + a) * (h + d), (h + d) ** 2 - (f + b) ** 2),
+            LFTTwo.MODE_MM_MP: lambda: ((e - a) * (h - d) - (g - c) * (f - b), (h - d) ** 2 - (f - b) ** 2),
+            LFTTwo.MODE_PM_MP: lambda: ((g - a) * (d - f) - (c - e) * (h - b), (h - b) ** 2 - (d - f) ** 2),
+            LFTTwo.MODE_PP_MP: lambda: ((g + e) * (d + b) - (c + a) * (h + f), (h + f) ** 2 - (d + b) ** 2),
+            LFTTwo.MODE_MP_MM: lambda: ((g - c) * (f - b) - (e - a) * (h - d), (h - d) ** 2 - (f - b) ** 2),
+            LFTTwo.MODE_PM_MM: lambda: ((g - e) * (d - b) - (c - a) * (h - f), (h - f) ** 2 - (d - b) ** 2),
+            LFTTwo.MODE_PP_MM: lambda: ((g + a) * (d + f) - (c + e) * (h + b), (h + b) ** 2 - (d + f) ** 2),
+        }[mode]()
+        self._lowest_bound_num, self._lowest_bound_denom = {
+            LFTTwo.MODE_MM_PP: lambda: (+ a - c - e + g,   b - d - f + h),
+            LFTTwo.MODE_MP_PP: lambda: (- a - c + e + g, - b - d + f + h),
+            LFTTwo.MODE_PM_PP: lambda: (- a + c - e + g, - b + d - f + h),
+            LFTTwo.MODE_MM_PM: lambda: (+ a - c - e + g,   b - d - f + h),
+            LFTTwo.MODE_MP_PM: lambda: (- a - c + e + g, - b - d + f + h),
+            LFTTwo.MODE_PP_PM: lambda: (+ a + c + e + g,   b + d + f + h),
+            LFTTwo.MODE_MM_MP: lambda: (+ a - c - e + g,   b - d - f + h),
+            LFTTwo.MODE_PM_MP: lambda: (- a + c - e + g, - b + d - f + h),
+            LFTTwo.MODE_PP_MP: lambda: (+ a + c + e + g,   b + d + f + h),
+            LFTTwo.MODE_MP_MM: lambda: (- a - c + e + g, - b - d + f + h),
+            LFTTwo.MODE_PM_MM: lambda: (- a + c - e + g, - b + d - f + h),
+            LFTTwo.MODE_PP_MM: lambda: (+ a + c + e + g,   b + d + f + h),
+        }[mode]()
 
     def timesX(self, other):
         [a, b, c, d, e, f, g, h] = self._matrix
@@ -41,6 +75,7 @@ class LFTTwo():
         self._matrix[5] = f * u + h * v
         self._matrix[6] = e * w + g * x
         self._matrix[7] = f * w + h * x
+        self._calculateCharacteristics()
 
     def timesY(self, other):
         # suppose we have a flip operation that swaps X and Y
@@ -56,6 +91,7 @@ class LFTTwo():
         self._matrix[5] = b * w + f * x
         self._matrix[6] = c * w + g * x
         self._matrix[7] = d * w + h * x
+        self._calculateCharacteristics()
 
     def timesDigitX(self, digit):
         [a, b, c, d, e, f, g, h] = self._matrix
@@ -68,6 +104,8 @@ class LFTTwo():
         self._matrix[5] = f
         self._matrix[6] = e * w + (g << exp)
         self._matrix[7] = f * w + (h << exp)
+        # TODO: inline
+        self._calculateCharacteristics()
 
     def timesDigitY(self, digit):
         [a, b, c, d, e, f, g, h] = self._matrix
@@ -80,6 +118,8 @@ class LFTTwo():
         self._matrix[5] = b * w + (f << exp)
         self._matrix[6] = c * w + (g << exp)
         self._matrix[7] = d * w + (h << exp)
+        # TODO: inline
+        self._calculateCharacteristics()
 
     def invtimes(self, other):
         # calculates inv(other) * self
@@ -95,6 +135,7 @@ class LFTTwo():
         self._matrix[5] = u * e + w * f
         self._matrix[6] = x * g + v * h
         self._matrix[7] = u * g + w * h
+        self._calculateCharacteristics()
 
     def invtimesdigit(self, digit):
         [a, b, c, d, e, f, g, h] = self._matrix
@@ -107,6 +148,8 @@ class LFTTwo():
         self._matrix[5] = f
         self._matrix[6] = (g << exp) + v * h
         self._matrix[7] = h
+        # TODO: inline
+        self._calculateCharacteristics()
 
     @property
     def _determineXM(self):
@@ -195,8 +238,7 @@ class LFTTwo():
         # L(1, -1) - L(-1, 1) =
         # 2 * [(c - e) * (h - b) - (g - a) * (d - f)] / ((h - b) ** 2 - (d - f) ** 2)
 
-    @property
-    def lft_type(self):
+    def _calc_lft_type(self):
         """determines if the LFT is increasing or decreasing"""
         isIncrAtXM = self._determineXM
         isIncrAtXP = self._determineXP
@@ -265,6 +307,10 @@ class LFTTwo():
                 # L(1, -1) <= L(-1, -1) and L(1, 1) <= L(-1, 1)
                 return LFTTwo.MODE_PP_MM
 
+    @property
+    def lft_type(self):
+        return self._lft_type
+
     def normalize(self):
         [a, b, c, d, e, f, g, h] = self._matrix
         ab = math.gcd(a, b)
@@ -279,6 +325,8 @@ class LFTTwo():
                 a // gcd, b // gcd, c // gcd, d // gcd,
                 e // gcd, f // gcd, g // gcd, h // gcd
             ]
+        # TODO: inline
+        self._calculateCharacteristics()
 
     @property
     def is_bounded(self):
@@ -312,62 +360,18 @@ class LFTTwo():
     def next_index_to_pull(self):
         [a, b, c, d, e, f, g, h] = self._matrix
         # assert self.is_contracting
-        mode = self.lft_type
         # TODO: duplicated work here, when we also calculate this for lft_type
-        small_enough = {
-            LFTTwo.MODE_MM_PP: lambda: LFTOne.is_small_enough(
-                (c + e) * (h + b) - (g + a) * (d + f), (h + b) ** 2 - (d + f) ** 2),
-            LFTTwo.MODE_MP_PP: lambda: LFTOne.is_small_enough(
-                (c + a) * (h + f) - (g + e) * (d + b), (h + f) ** 2 - (d + b) ** 2),
-            LFTTwo.MODE_PM_PP: lambda: LFTOne.is_small_enough(
-                (e + a) * (h + d) - (g + c) * (f + b), (h + d) ** 2 - (f + b) ** 2),
-            LFTTwo.MODE_MM_PM: lambda: LFTOne.is_small_enough(
-                (c - a) * (h - f) - (g - e) * (d - b), (h - f) ** 2 - (d - b) ** 2),
-            LFTTwo.MODE_MP_PM: lambda: LFTOne.is_small_enough(
-                (c - e) * (h - b) - (g - a) * (d - f), (h - b) ** 2 - (d - f) ** 2),
-            LFTTwo.MODE_PP_PM: lambda: LFTOne.is_small_enough(
-                (g + c) * (f + b) - (e + a) * (h + d), (h + d) ** 2 - (f + b) ** 2),
-            LFTTwo.MODE_MM_MP: lambda: LFTOne.is_small_enough(
-                (e - a) * (h - d) - (g - c) * (f - b), (h - d) ** 2 - (f - b) ** 2),
-            LFTTwo.MODE_PM_MP: lambda: LFTOne.is_small_enough(
-                (g - a) * (d - f) - (c - e) * (h - b), (h - b) ** 2 - (d - f) ** 2),
-            LFTTwo.MODE_PP_MP: lambda: LFTOne.is_small_enough(
-                (g + e) * (d + b) - (c + a) * (h + f), (h + f) ** 2 - (d + b) ** 2),
-            LFTTwo.MODE_MP_MM: lambda: LFTOne.is_small_enough(
-                (g - c) * (f - b) - (e - a) * (h - d), (h - d) ** 2 - (f - b) ** 2),
-            LFTTwo.MODE_PM_MM: lambda: LFTOne.is_small_enough(
-                (g - e) * (d - b) - (c - a) * (h - f), (h - f) ** 2 - (d - b) ** 2),
-            LFTTwo.MODE_PP_MM: lambda: LFTOne.is_small_enough(
-                (g + a) * (d + f) - (c + e) * (h + b), (h + b) ** 2 - (d + f) ** 2),
-        }[mode]()
+        small_enough = LFTOne.is_small_enough(self._interval_length_num, self._interval_length_denom)
         if small_enough:
             return None
         # TODO: find a solid way to determine which stream to pull next, instead of basically by chance
         pre_hash = hash((a, b, c, d, e, f, g, h)) % 2**32
-        pre_hash = (pre_hash + 0x479ab41d) + (pre_hash << 8)
-        pre_hash = (pre_hash ^ 0x5aedd67d) ^ (pre_hash >> 3)
-        pre_hash = (pre_hash + 0x17bea992) + (pre_hash << 7)
-        return pre_hash % 2
+        return (pre_hash >> 31) % 2
 
     def extract(self):
-        [a, b, c, d, e, f, g, h] = self._matrix
         # assert self.is_contracting
-        mode = self.lft_type
         # take the minimum point TODO: biased against smaller negative digits
-        extracted_digit = {
-            LFTTwo.MODE_MM_PP: lambda: LFTOne.digit_from_lower_bound(+ a - c - e + g,   b - d - f + h),
-            LFTTwo.MODE_MP_PP: lambda: LFTOne.digit_from_lower_bound(- a - c + e + g, - b - d + f + h),
-            LFTTwo.MODE_PM_PP: lambda: LFTOne.digit_from_lower_bound(- a + c - e + g, - b + d - f + h),
-            LFTTwo.MODE_MM_PM: lambda: LFTOne.digit_from_lower_bound(+ a - c - e + g,   b - d - f + h),
-            LFTTwo.MODE_MP_PM: lambda: LFTOne.digit_from_lower_bound(- a - c + e + g, - b - d + f + h),
-            LFTTwo.MODE_PP_PM: lambda: LFTOne.digit_from_lower_bound(+ a + c + e + g,   b + d + f + h),
-            LFTTwo.MODE_MM_MP: lambda: LFTOne.digit_from_lower_bound(+ a - c - e + g,   b - d - f + h),
-            LFTTwo.MODE_PM_MP: lambda: LFTOne.digit_from_lower_bound(- a + c - e + g, - b + d - f + h),
-            LFTTwo.MODE_PP_MP: lambda: LFTOne.digit_from_lower_bound(+ a + c + e + g,   b + d + f + h),
-            LFTTwo.MODE_MP_MM: lambda: LFTOne.digit_from_lower_bound(- a - c + e + g, - b - d + f + h),
-            LFTTwo.MODE_PM_MM: lambda: LFTOne.digit_from_lower_bound(- a + c - e + g, - b + d - f + h),
-            LFTTwo.MODE_PP_MM: lambda: LFTOne.digit_from_lower_bound(+ a + c + e + g,   b + d + f + h),
-        }[mode]()
+        extracted_digit = LFTOne.digit_from_lower_bound(self._lowest_bound_num, self._lowest_bound_denom)
         assert -POWER_2 < extracted_digit < POWER_2
         self.invtimesdigit(extracted_digit)
         return extracted_digit

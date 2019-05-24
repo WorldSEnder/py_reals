@@ -2,6 +2,7 @@ import fractions
 import math
 from .defs import POWER_2, EXPONENT_2
 
+
 class LFTOne():
     MODE_INCREASING = 0
     MODE_DECREASING = 1
@@ -36,21 +37,10 @@ class LFTOne():
 
     @staticmethod
     def is_small_enough(a, b):
-        """returns if the interval length given by the fraction a / b (must be positive)
+        """returns if the interval length given by the fraction (2 * a) / b (must be positive)
         is small enough to successfully extract a digit, assuming the bounds are contracting"""
-        # small enough means that the interval_length <= 2 / POWER_2
-        return a <= b >> (EXPONENT_2 - 1)
-
-    def __init__(self, a, b, c, d):
-        self._matrix = [a, b, c, d]
-
-    def clone(self):
-        [a, b, c, d] = self._matrix
-        return LFTOne(a, b, c, d)
-
-    def __str__(self):
-        [a, b, c, d] = self._matrix
-        return "[{a}\t{c}\n{b}\t{d}]".format(a=a, b=b, c=c, d=d)
+        # small enough means that the interval_length <= 1 / POWER_2
+        return a <= b >> (EXPONENT_2 + 1)
 
     @classmethod
     def identity(cls):
@@ -65,6 +55,30 @@ class LFTOne():
     def from_fraction(cls, frac):
         return cls(frac.numerator, 0, 0, frac.denominator)
 
+    def __init__(self, a, b, c, d):
+        self._matrix = [a, b, c, d]
+        self._calculateCharacteristics()
+
+    def clone(self):
+        [a, b, c, d] = self._matrix
+        return LFTOne(a, b, c, d)
+
+    def __str__(self):
+        [a, b, c, d] = self._matrix
+        return "[{a}\t{c}\n{b}\t{d}]".format(a=a, b=b, c=c, d=d)
+
+    def _calculateCharacteristics(self):
+        [a, b, c, d] = self._matrix
+        self._lft_type = mode = LFTOne.MODE_INCREASING if self._determineMP else LFTOne.MODE_DECREASING
+        self._interval_length_num, self._interval_length_denom = {
+            LFTOne.MODE_INCREASING: lambda: (a * d - c * b, d ** 2 - b ** 2),
+            LFTOne.MODE_DECREASING: lambda: (c * b - a * d, d ** 2 - b ** 2),
+        }[mode]()
+        self._lowest_bound_num, self._lowest_bound_denom = {
+            LFTOne.MODE_INCREASING: lambda: (c - a, d - b),
+            LFTOne.MODE_DECREASING: lambda: (c + a, d + b),
+        }[mode]()
+
     def times(self, other):
         # calculates self * other
         [a, b, c, d] = self._matrix
@@ -73,6 +87,7 @@ class LFTOne():
         self._matrix[1] = b * u + d * v
         self._matrix[2] = a * w + c * x
         self._matrix[3] = b * w + d * x
+        self._calculateCharacteristics()
 
     def timesdigit(self, digit):
         # special cases times(LFTOne.digit(digit))
@@ -83,6 +98,8 @@ class LFTOne():
         self._matrix[1] = b
         self._matrix[2] = a * w + (c << exp)
         self._matrix[3] = b * w + (d << exp)
+        # TODO: inline
+        self._calculateCharacteristics()
 
     def invtimes(self, other):
         # calculates inv(other) * self
@@ -94,6 +111,7 @@ class LFTOne():
         self._matrix[1] = b * u + d * v
         self._matrix[2] = a * w + c * x
         self._matrix[3] = b * w + d * x
+        self._calculateCharacteristics()
 
     def invtimesdigit(self, digit):
         # special cases invtimes(LFTOne.digit(digit))
@@ -104,14 +122,8 @@ class LFTOne():
         self._matrix[1] = v
         self._matrix[2] = (w << exp) + c * x
         self._matrix[3] = x
-
-    def normalize(self):
-        [a, b, c, d] = self._matrix
-        ab = math.gcd(a, b)
-        cd = math.gcd(c, d)
-        abcd = math.gcd(ab, cd)
-        gcd = max(1, abcd)
-        self._matrix[:] = [a // gcd, b // gcd, c // gcd, d // gcd]
+        # TODO: inline
+        self._calculateCharacteristics()
 
     @property
     def _determineMP(self):
@@ -126,35 +138,33 @@ class LFTOne():
     @property
     def lft_type(self):
         """determines if the LFT is increasing or decreasing"""
-        isIncreasing = self._determineMP
-        return LFTOne.MODE_INCREASING if isIncreasing else LFTOne.MODE_DECREASING
+        return self._lft_type
+
+    def normalize(self):
+        [a, b, c, d] = self._matrix
+        ab = math.gcd(a, b)
+        cd = math.gcd(c, d)
+        abcd = math.gcd(ab, cd)
+        gcd = max(1, abcd)
+        self._matrix[:] = [a // gcd, b // gcd, c // gcd, d // gcd]
+        # TODO: inline
+        self._calculateCharacteristics()
 
     @property
     def next_index_to_pull(self):
-        [a, b, c, d] = self._matrix
-        # TODO: duplicated work here, when we also calculate this for lft_type
-        assert self.is_contracting
-        mode = self.lft_type
+        # assert self.is_contracting
         # L(1) - L(-1) = (c + a) / (d + b) - (c - a) / (d - b)
         #              = [(c + a) * (d - b) - (c - a) * (d + b)] / (d - b) * (d + b)
         #              = 2 * (a * d - c * b) / (d * d - b * b)
-        is_small_enough = {
-            LFTOne.MODE_INCREASING: lambda: LFTOne.is_small_enough(a * d - c * b, self._signature),
-            LFTOne.MODE_DECREASING: lambda: LFTOne.is_small_enough(c * b - a * d, self._signature),
-        }[mode]()
+        is_small_enough = LFTOne.is_small_enough(self._interval_length_num, self._interval_length_denom)
         return None if is_small_enough else 0
 
     def extract(self):
         assert self.next_index_to_pull is None
-        # after normalization, this guarantees d - b > 0
-        [a, b, c, d] = self._matrix
-        mode = self.lft_type
-        extracted_digit = {
-            LFTOne.MODE_INCREASING: lambda: LFTOne.digit_from_lower_bound(c - a, d - b),
-            LFTOne.MODE_DECREASING: lambda: LFTOne.digit_from_lower_bound(c + a, d + b),
-        }[mode]()
+        extracted_digit = LFTOne.digit_from_lower_bound(self._lowest_bound_num, self._lowest_bound_denom)
         assert -POWER_2 < extracted_digit < POWER_2
         self.invtimesdigit(extracted_digit)
+        # assert self.is_contracting
         return extracted_digit
 
     @property
@@ -182,7 +192,14 @@ class LFTOne():
 
     @property
     def is_contracting(self):
-        return self.is_bounded and all(abs(bound) <= 1 for bound in self.bounds)
+        if not self.is_bounded:
+            raise Exception("Not bounded, will never be contracting")
+        bm1, bp1 = self.bounds
+        if abs(bm1) <= 1 and abs(bp1) <= 1:
+            return True
+        if abs(bm1) > 1 and abs(bp1) > 1 and bm1 * bp1 > 0:
+            raise Exception("interval outside [-1, 1], will never be contracting")
+        return False
 
     @property
     def interval_length(self):
