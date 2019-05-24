@@ -101,6 +101,15 @@ class LFTOne():
         # TODO: inline
         self._calculateCharacteristics()
 
+    def timesdigitbase(self, digit, base):
+        assert -base < digit < base
+        [a, b, c, d] = self._matrix
+        w, x = digit, base
+        self._matrix[0] = a
+        self._matrix[1] = b
+        self._matrix[2] = a * w + c * x
+        self._matrix[3] = b * w + d * x
+
     def invtimes(self, other):
         # calculates inv(other) * self
         [u, v, w, x] = self._matrix

@@ -1,7 +1,7 @@
 import fractions
 import decimal
 import math
-from .defs import EXPONENT_2, POWER_2
+from .defs import EXPONENT_2, POWER_2, PRINT_HEX
 from .lft_one import LFTOne
 from .lft_two import LFTTwo
 
@@ -56,40 +56,94 @@ def bbp_formula_base_2_32():
         n += 8
 
 
-def adapted_bpp_arbitrary_base():
-    bbp_generator = bbp_formula_base_2_32()
+def convert_base(digitstream, orig_base, target_base):
+    def is_power2(n):
+        return not (n & (n - 1))
 
-    if EXPONENT_2 % 32 == 0:
-        digits_per_power2 = EXPONENT_2 // 32
-        while True:
-            n = digits_per_power2
-            out = 0
-            while n:
-                out = (out << 32) + next(bbp_generator)
-                n -= 1
-            yield out
-    elif 32 % EXPONENT_2 == 0:
-        digits_per_gen = 32 // EXPONENT_2
-        MASK = POWER_2 - 1
+    def exact_log2(n):
+        return n.bit_length() - 1
+
+    def is_exactly_convertible(bf, bt):
+        while bt > 1:
+            if bt % bf != 0:
+                return False
+            bt //= bf
+        return True
+
+    def discrete_log(bf, bt):
         n = 0
-        digit = 0
+        while bt > 1:
+            bt //= bf
+            n += 1
+        return n
+
+    def largest_shared_power(bf, bt):
+        while bt > 1:
+            while bf % bt == 0:
+                bf //= bt
+            bf, bt = bt, bf
+        return bf
+
+    def get_split_strat():
+        # this is complicated by the fact that
+        # each digit can either be positive or
+        # negative! This leads us to the realization
+        # that there is no one unique sequence
+        # realizing the split but rather multiple
+        if is_power2(target_base):
+            mask = target_base - 1
+            shift = exact_log2(target_base)
+
+            def split_trgt_base(p, n):
+                split = p >> (n * shift)
+                rest = p - (split << (n * shift))
+                return rest, split
+        else:
+            def split_trgt_base(p, n):
+                base_pow = pow(target_base, n)
+                split = p // base_pow
+                if split < 0:
+                    split += 1
+                rest = p - split * base_pow
+                return rest, split
+        return split_trgt_base
+
+    digit_gen = digitstream()
+
+    if is_exactly_convertible(orig_base, target_base):
+        # original base is smaller, but fits exactly
+        in_digits_per_out = discrete_log(orig_base, target_base)
+        if is_power2(orig_base):
+            shift = exact_log2(orig_base)
+
+            def mult_orig_base(p):
+                return p << shift
+        else:
+            def mult_orig_base(p):
+                return p * orig_base
         while True:
-            if n == 0:
-                n = digits_per_gen
-                digit = next(bbp_generator)
-            n -= 1
-            yield (digit >> n * EXPONENT_2) & MASK
-    else:
-        bits_remaining = 0
-        digit = 0
-        MASK = POWER_2 - 1
+            out = 0
+            for _ in range(in_digits_per_out):
+                out = mult_orig_base(out) + next(digit_gen)
+            yield out
+
+    elif is_exactly_convertible(target_base, orig_base):
+        # target base is smaller, but fits exactly
+        split_trgt_base = get_split_strat()
+        out_digits_per_in = discrete_log(target_base, orig_base)
         while True:
-            while bits_remaining < EXPONENT_2:
-                digit = (digit << 32) + next(bbp_generator)
-                bits_remaining += 32
-            yield (digit >> (bits_remaining - EXPONENT_2)) & MASK
-            digit = digit & ~(MASK << (bits_remaining - EXPONENT_2))
-            bits_remaining -= EXPONENT_2
+            digit = next(digit_gen)
+            for n in range(out_digits_per_in - 1, -1, -1):
+                digit, part = split_trgt_base(digit, n)
+                yield part
+    shared_power = largest_shared_power(target_base, orig_base)
+    if shared_power == 1:
+        raise NotImplementedError()
+    yield from convert_base(lambda: convert_base(digitstream, orig_base, shared_power), shared_power, target_base)
+
+
+def adapted_bpp_arbitrary_base():
+    yield from convert_base(bbp_formula_base_2_32, 2**32, POWER_2)
 
 
 def transform_unary(lft, digitstream):
@@ -137,20 +191,65 @@ def format_num(digitstream, integer_digits, precision=128):
     def dec_from_frac(frac):
         return frac.numerator / decimal.Decimal(frac.denominator)
 
+    base = POWER_2
     precision //= EXPONENT_2
     digit_gen = digitstream()
     integer_part = 0
     for _ in range(integer_digits):
-        integer_part *= POWER_2
+        integer_part *= base
         integer_part += next(digit_gen)
 
     matrix = LFTOne(1, 0, integer_part, 1)
     for _ in range(precision):
         digit = next(digit_gen)
-        matrix.timesdigit(digit)
+        matrix.timesdigitbase(digit, base)
         matrix.normalize()
     lower, upper = matrix.bounds
     return "[{l}, {u}]".format(l=dec_from_frac(lower), u=dec_from_frac(upper))
+
+
+def format_hex(digitstream, integer_digits, precision=512 // 4):
+    def to_hex(digit):
+        assert 0 <= digit < 16
+        return "%x" % digit
+
+    def inv_digit(digit):
+        assert 0 <= digit < 16
+        return 16 - digit
+
+    digit_gen = convert_base(digitstream, POWER_2, 16)
+    zeroes = 0
+    digit = next(digit_gen)
+    while digit == 0 and precision > 0:
+        zeroes += 1
+        digit = next(digit_gen)
+        precision -= 1
+    outstr = ("-" if digit < 0 else " ") + "." + ("0" * zeroes)
+    zeroes = 0
+    sign = -1 if digit < 0 else 1
+    saved = abs(digit)
+    while precision > 0:
+        zeroes = 0
+        precision -= 1
+        digit = next(digit_gen)
+        while digit == 0 and precision > 0:
+            zeroes += 1
+            digit = next(digit_gen)
+            precision -= 1
+        digit *= sign
+        if digit < 0:
+            outstr += to_hex(saved - 1) + ("f" * zeroes)
+            saved = inv_digit(-digit)
+        elif digit > 0:
+            outstr += to_hex(saved) + ("0" * zeroes)
+            saved = digit
+    if zeroes > 0:
+        rounding = next(digit_gen) * sign
+        if rounding < 0:
+            outstr += to_hex(saved - 1) + ("f" * zeroes)
+        elif rounding >= 0:
+            outstr += to_hex(saved) + ("0" * zeroes)
+    return outstr
 
 
 def dec_from_frac(frac):
@@ -184,6 +283,8 @@ class PrimRealNumber():
         self._generator = generator
 
     def __str__(self):
+        if PRINT_HEX:
+            return format_hex(self._generator, 0)
         return format_num(self._generator, 0)
 
 
