@@ -137,6 +137,7 @@ SHIFT = (4 * D)
 M = 1 << SHIFT
 MASK = M - 1
 
+
 def S(j, n):
     # Left sum
     s = 0
@@ -159,6 +160,7 @@ def S(j, n):
             t = newt
         k -= 1
     return s + t
+
 
 def pi(n):
     x = ((4*S(1, n) - 2*S(4, n) - S(5, n) - S(6, n)) >> 4 * 6) & (16**8 - 1)

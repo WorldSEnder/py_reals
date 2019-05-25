@@ -95,7 +95,7 @@ def convert_base(digitstream, orig_base, target_base):
             shift = exact_log2(target_base)
 
             def split_trgt_base(p, n):
-                split = p >> (n * shift)
+                split = - (-p >> (n * shift)) if p < 0 else p >> (n * shift)
                 rest = p - (split << (n * shift))
                 return rest, split
         else:
@@ -208,7 +208,7 @@ def format_num(digitstream, integer_digits, precision=128):
     return "[{l}, {u}]".format(l=dec_from_frac(lower), u=dec_from_frac(upper))
 
 
-def format_hex(digitstream, integer_digits, precision=512 // 4):
+def gen_format_hex(digitstream):
     def to_hex(digit):
         assert 0 <= digit < 16
         return "%x" % digit
@@ -219,37 +219,73 @@ def format_hex(digitstream, integer_digits, precision=512 // 4):
 
     digit_gen = convert_base(digitstream, POWER_2, 16)
     zeroes = 0
+    should_continue = True
     digit = next(digit_gen)
-    while digit == 0 and precision > 0:
+    while digit == 0 and should_continue:
         zeroes += 1
         digit = next(digit_gen)
-        precision -= 1
-    outstr = ("-" if digit < 0 else " ") + "." + ("0" * zeroes)
+        should_continue = yield
+    yield ("-" if digit < 0 else " ") + "."
+    yield "0" * zeroes
     zeroes = 0
     sign = -1 if digit < 0 else 1
     saved = abs(digit)
-    while precision > 0:
+    while should_continue:
         zeroes = 0
-        precision -= 1
+        should_continue = yield
         digit = next(digit_gen)
-        while digit == 0 and precision > 0:
+        if not should_continue:
+            digit *= sign
+            break
+        while digit == 0 and should_continue:
             zeroes += 1
             digit = next(digit_gen)
-            precision -= 1
+            should_continue = yield
         digit *= sign
         if digit < 0:
-            outstr += to_hex(saved - 1) + ("f" * zeroes)
+            should_continue = yield to_hex(saved - 1) + ("f" * zeroes)
             saved = inv_digit(-digit)
         elif digit > 0:
-            outstr += to_hex(saved) + ("0" * zeroes)
+            should_continue = yield to_hex(saved) + ("0" * zeroes)
             saved = digit
-    if zeroes > 0:
-        rounding = next(digit_gen) * sign
-        if rounding < 0:
-            outstr += to_hex(saved - 1) + ("f" * zeroes)
-        elif rounding >= 0:
-            outstr += to_hex(saved) + ("0" * zeroes)
+    rounding = next(digit_gen) * sign
+    if rounding < 0:
+        yield to_hex(saved - 1) + ("f" * zeroes)
+    elif rounding >= 0:
+        yield to_hex(saved) + ("0" * zeroes)
+
+
+def format_hex(digitstream, precision=2048):
+    generator = gen_format_hex(digitstream)
+    outstr = generator.send(None)
+    while precision > 0:
+        result = generator.send(True)
+        if result is not None:
+            outstr += result
+        else:
+            precision -= 1
+    outstr += generator.send(False)
     return outstr
+
+
+def stream_hex(digitstream):
+    line_buffer = ""
+
+    def print_chunk(chunk):
+        nonlocal line_buffer
+        line_buffer += chunk
+        as_chunks = [line_buffer[i:i + 64] for i in range(0, len(line_buffer), 64)]
+        line_buffer = "" if not as_chunks else as_chunks.pop(-1)
+        for to_print in as_chunks:
+            print(to_print)
+
+    generator = gen_format_hex(digitstream)
+    chunk = generator.send(None)
+    print(chunk)
+    while True:
+        result = generator.send(True)
+        if result is not None:
+            print_chunk(result)
 
 
 def dec_from_frac(frac):
@@ -284,8 +320,11 @@ class PrimRealNumber():
 
     def __str__(self):
         if PRINT_HEX:
-            return format_hex(self._generator, 0)
+            return format_hex(self._generator)
         return format_num(self._generator, 0)
+
+    def stream_to_stdout(self):
+        return stream_hex(self._generator)
 
 
 class PrimUnaryOperation():
