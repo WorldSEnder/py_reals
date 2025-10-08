@@ -96,12 +96,12 @@ class LFTTwo():
     def timesDigitX(self, digit):
         [a, b, c, d, e, f, g, h] = self._matrix
         w, exp = digit, EXPONENT_2
-        self._matrix[0] = a
-        self._matrix[1] = b
+        # self._matrix[0] = a
+        # self._matrix[1] = b
         self._matrix[2] = a * w + (c << exp)
         self._matrix[3] = b * w + (d << exp)
-        self._matrix[4] = e
-        self._matrix[5] = f
+        # self._matrix[4] = e
+        # self._matrix[5] = f
         self._matrix[6] = e * w + (g << exp)
         self._matrix[7] = f * w + (h << exp)
         # TODO: inline
@@ -110,10 +110,10 @@ class LFTTwo():
     def timesDigitY(self, digit):
         [a, b, c, d, e, f, g, h] = self._matrix
         w, exp = digit, EXPONENT_2
-        self._matrix[0] = a
-        self._matrix[1] = b
-        self._matrix[2] = c
-        self._matrix[3] = d
+        # self._matrix[0] = a
+        # self._matrix[1] = b
+        # self._matrix[2] = c
+        # self._matrix[3] = d
         self._matrix[4] = a * w + (e << exp)
         self._matrix[5] = b * w + (f << exp)
         self._matrix[6] = c * w + (g << exp)
@@ -141,13 +141,13 @@ class LFTTwo():
         [a, b, c, d, e, f, g, h] = self._matrix
         v, exp = -digit, EXPONENT_2
         self._matrix[0] = (a << exp) + v * b
-        self._matrix[1] = b
+        # self._matrix[1] = b
         self._matrix[2] = (c << exp) + v * d
-        self._matrix[3] = d
+        # self._matrix[3] = d
         self._matrix[4] = (e << exp) + v * f
-        self._matrix[5] = f
+        # self._matrix[5] = f
         self._matrix[6] = (g << exp) + v * h
-        self._matrix[7] = h
+        # self._matrix[7] = h
         # TODO: inline
         self._calculateCharacteristics()
 

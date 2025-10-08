@@ -305,6 +305,10 @@ def from_matrix_prod(lft_start, matrix_gen):
     return generator
 
 
+def from_matrix2_prod(lft_start, lft_gen):
+    raise NotImplementedError()
+
+
 def log2_matrix_gen():
     n = 1
     while True:
